@@ -13,10 +13,10 @@ cloudinary.config({
 export const createPost = async (req, res) => {
     try {
         let imageUrl = null;
-           const user = await User.findById(req.user?._id);
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
+        const user = await User.findById(req.user?._id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
         
         if (req.file) {
             // Convert buffer to base64
@@ -39,9 +39,6 @@ export const createPost = async (req, res) => {
         });
         
         const savedPost = await newPost.save();
-        // user.posts.push(savedPost._id); 
-        // await user.save();
-
         res.status(201).json({ success: true, message: "Post created successfully", data: savedPost });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -53,8 +50,15 @@ export const getAllPosts = async (req, res) => {
     try {
         const posts = await Post.find()
             .populate('user likes comments', 'fullName username avatar')
-            .sort({ timestamp: -1 });
-        res.status(200).json({ success: true, data: posts });
+            .sort({ timestamp: -1 })
+            .lean();
+
+        const postsWithIsLiked = posts.map(post => ({
+            ...post,
+            isLiked: req.user?._id ? post.likes.some(like => like._id.toString() === req.user._id.toString()) : false
+        }));
+
+        res.status(200).json({ success: true, data: postsWithIsLiked });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -65,13 +69,20 @@ export const getPostById = async (req, res) => {
     try {
         const post = await Post.findById(req.params.id)
             .populate('user', 'fullName username avatar')
-            .populate('comments');
-        
+            .populate('comments likes')
+            .lean();
+
         if (!post) {
             return res.status(404).json({ success: false, message: "Post not found" });
         }
-        
-        res.status(200).json({ success: true, data: post });
+// console.log( post.likes.some(like =>  like._id.toString() === req.user._id.toString()));
+
+        const postWithIsLiked = {
+            ...post,
+            isLiked: req.user?._id ? post.likes.some(like =>  like._id.toString() === req.user._id.toString()) : false
+        };
+
+        res.status(200).json({ success: true, data: postWithIsLiked });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -82,21 +93,43 @@ export const getUserPosts = async (req, res) => {
     try {
         const posts = await Post.find({ user: req.params.userId })
             .populate('user', 'fullName username avatar')
-            .sort({ timestamp: -1 });
-        res.status(200).json({ success: true, data: posts });
+            .sort({ timestamp: -1 })
+            .lean();
+
+        const postsWithIsLiked = posts.map(post => ({
+            ...post,
+            isLiked: req.user?._id ? post.likes.some(like => like.toString() === req.user._id.toString()) : false
+        }));
+
+        res.status(200).json({ success: true, data: postsWithIsLiked });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// Get timeline posts
+// Get timeline posts (modified to include posts from user and their followed users)
 export const getTimelinePosts = async (req, res) => {
     try {
-        const posts = await Post.find()
+        const user = await User.findById(req.params.userId).select('following').lean();
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        // Fetch posts from the user and their followed users
+        const posts = await Post.find({
+            user: { $in: [req.params.userId, ...user.following] }
+        })
             .populate('user', 'fullName username avatar')
             .sort({ timestamp: -1 })
-            .limit(20);
-        res.status(200).json({ success: true, data: posts });
+            .limit(20)
+            .lean();
+
+        const postsWithIsLiked = posts.map(post => ({
+            ...post,
+            isLiked: req.user?._id ? post.likes.some(like => like.toString() === req.user._id.toString()) : false
+        }));
+
+        res.status(200).json({ success: true, data: postsWithIsLiked });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -135,14 +168,11 @@ export const updatePost = async (req, res) => {
 export const likePost = async (req, res) => {
     try {
         const post = await Post.findById(req.params.id);
-        console.log(post);
-        
         
         if (!post) {
             return res.status(404).json({ success: false, message: "Post not found" });
         }
         
-        // Initialize likes array if it doesn't exist
         if (!post.likes) {
             post.likes = [];
         }
@@ -150,7 +180,6 @@ export const likePost = async (req, res) => {
         const isLiked = post.likes.some(like => like.toString() === req.user._id.toString());
         
         if (isLiked) {
-            // User already liked the post, remove like
             await Post.findByIdAndUpdate(req.params.id, {
                 $pull: { likes: req.user._id }
             });
@@ -160,7 +189,6 @@ export const likePost = async (req, res) => {
                 liked: false
             });
         } else {
-            // User hasn't liked the post yet, add like
             await Post.findByIdAndUpdate(req.params.id, {
                 $addToSet: { likes: req.user._id }
             });
@@ -199,27 +227,27 @@ export const commentPost = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+
 // Get all comments of a post
-// postController.js
 export const getComments = async (req, res) => {
     try {
-      const { id } = req.params; // postId
-      const post = await Post.findById(id)
-        .populate({
-          path: "comments",
-          populate: { path: "user", select: "username fullName" } // if Comment has user field
-        });
+        const { id } = req.params;
+        const post = await Post.findById(id)
+            .populate({
+                path: "comments",
+                populate: { path: "user", select: "username fullName" }
+            });
   
-      if (!post) {
-        return res.status(404).json({ message: "Post not found" });
-      }
+        if (!post) {
+            return res.status(404).json({ message: "Post not found" });
+        }
   
-      res.status(200).json(post.comments);
+        res.status(200).json(post.comments);
     } catch (error) {
-      res.status(500).json({ message: "Error fetching comments", error: error.message });
+        res.status(500).json({ message: "Error fetching comments", error: error.message });
     }
-  };
-    
+};
+
 // Delete post
 export const deletePost = async (req, res) => {
     try {

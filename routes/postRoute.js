@@ -8,11 +8,11 @@ import {
     likePost,
     commentPost,
     getTimelinePosts,
-    getUserPosts
+    getUserPosts,
+    getComments
 } from '../controllers/postController.js';
 import { isAuth } from '../controllers/authController.js';
 import multer from 'multer';
-import { getComments } from '../controllers/postController.js';
 
 const postRoute = express.Router();  
 
@@ -34,18 +34,32 @@ const upload = multer({
     }
 });
 
-postRoute.post('/', isAuth, upload.single('image'), createPost);
+// Multer error handling middleware
+const handleMulterError = (err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+        // Handle Multer-specific errors (e.g., file size limit)
+        return res.status(400).json({ success: false, message: `File upload error: ${err.message}` });
+    } else if (err) {
+        // Handle custom errors from fileFilter
+        return res.status(400).json({ success: false, message: err.message });
+    }
+    next();
+};
 
-// Get all posts
-postRoute.get('/', getAllPosts);
+// Create post with image upload
+postRoute.post('/', isAuth, upload.single('image'), handleMulterError, createPost);
 
-// Get post by ID
-postRoute.get('/:id', getPostById);
+// Get all posts (includes isLiked for authenticated users)
+postRoute.get('/', isAuth, getAllPosts);
 
-// Get user's posts
+// Get post by ID (includes isLiked)
+postRoute.get('/:id',isAuth, getPostById);
+
+// Get user's posts (includes isLiked)
 postRoute.get('/profile/:userId', getUserPosts);
 
-// Get timeline posts
+// Get timeline posts (includes isLiked)
+// Note: :userId is unused in controller; consider revising if intended to filter by user
 postRoute.get('/timeline/:userId', getTimelinePosts);
 
 // Update post
@@ -56,6 +70,8 @@ postRoute.put('/:id/like', isAuth, likePost);
 
 // Comment on post
 postRoute.put('/:id/comment', isAuth, commentPost);
+
+// Get all comments of a post
 postRoute.get('/:id/comments', getComments);
 
 // Delete post
