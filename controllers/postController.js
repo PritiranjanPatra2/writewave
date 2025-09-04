@@ -1,6 +1,7 @@
 import Post from "../models/Post.js";
 import Comment from "../models/Comment.js";
 import cloudinary from 'cloudinary';
+import User from "../models/User.js";
 
 // Configure cloudinary
 cloudinary.config({
@@ -12,6 +13,10 @@ cloudinary.config({
 export const createPost = async (req, res) => {
     try {
         let imageUrl = null;
+           const user = await User.findById(req.user?._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
         
         if (req.file) {
             // Convert buffer to base64
@@ -34,6 +39,9 @@ export const createPost = async (req, res) => {
         });
         
         const savedPost = await newPost.save();
+        user.posts.push(savedPost._id); 
+        await user.save();
+
         res.status(201).json({ success: true, message: "Post created successfully", data: savedPost });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
