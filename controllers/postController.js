@@ -39,8 +39,8 @@ export const createPost = async (req, res) => {
         });
         
         const savedPost = await newPost.save();
-        user.posts.push(savedPost._id); 
-        await user.save();
+        // user.posts.push(savedPost._id); 
+        // await user.save();
 
         res.status(201).json({ success: true, message: "Post created successfully", data: savedPost });
     } catch (error) {

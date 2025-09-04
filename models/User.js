@@ -8,11 +8,11 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true },
     avatar: { type: String, default: "https://avatar.iran.liara.run/public/6" },
     bio: { type: String, default: "Just a curious mind exploring, learning, and creating every day ✨" },
-    posts: [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }],
-    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    likedPosts: [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }],
-    savedPosts: [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }],
+    // posts: [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }],
+    // followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    // following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    // likedPosts: [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }],
+    // savedPosts: [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }],
   },
   { timestamps: true }
 );
